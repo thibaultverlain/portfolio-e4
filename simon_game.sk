@@ -1,0 +1,333 @@
+function startSimonGame(p: player):
+
+    set {simon.playing.%{_p}%} to true
+    set {simon.level.%{_p}%} to 1
+    set {simon.showingSequence.%{_p}%} to false
+    set {simon.maxLevel.%{_p}%} to 10
+    set {simon.result.%{_p}%} to false
+    delete {simon.sequence.%{_p}%::*}
+    delete {simon.playerInput.%{_p}%::*}
+    delete {simon.won.%{_p}%}
+    
+    send "&a&l[SIMON] &7Jeu de mémoire démarré !" to {_p}
+    send "&7Reproduisez la séquence de couleurs !" to {_p}
+    send "&7Objectif: Atteindre le niveau &e%{simon.maxLevel.%{_p}%}%" to {_p}
+    
+    simonNextLevel({_p})
+
+
+function getSimonResult(p: player) :: boolean:
+    set {_result} to {simon.result.%{_p}%}
+    if {_result} is not set:
+        set {_result} to false
+    delete {simon.result.%{_p}%}
+    return {_result}
+
+
+function simonNextLevel(p: player):
+
+    if {simon.playing.%{_p}%} is not true:
+        stop
+
+    if {_p} is not online:
+        cleanupSimonGame({_p})
+        stop
+    
+    delete {simon.playerInput.%{_p}%::*}
+
+    set {_randomCase} to a random integer between 1 and 4
+    add {_randomCase} to {simon.sequence.%{_p}%::*}
+    
+    send "&e&l[SIMON] &7Niveau %{simon.level.%{_p}%}%/%{simon.maxLevel.%{_p}%}% - Mémorisez la séquence !" to {_p}
+
+    wait 1 second
+
+    if {_p} is not online:
+        cleanupSimonGame({_p})
+        stop
+    
+    showSimonSequence({_p})
+
+
+function showSimonSequence(p: player):
+    set {simon.showingSequence.%{_p}%} to true
+    
+    loop {simon.sequence.%{_p}%::*}:
+
+        if {simon.playing.%{_p}%} is not true:
+            stop
+        if {_p} is not online:
+            cleanupSimonGame({_p})
+            stop
+
+        if loop-value is 1:
+            set {_color} to "red"
+            set {_sound} to 1.0
+        else if loop-value is 2:
+            set {_color} to "blue"
+            set {_sound} to 1.2
+        else if loop-value is 3:
+            set {_color} to "green"
+            set {_sound} to 1.4
+        else if loop-value is 4:
+            set {_color} to "yellow"
+            set {_sound} to 1.6
+
+        openSimonGameGUI({_p}, {_color})
+        play sound "block.note_block.harp" with volume 1 and pitch {_sound} to {_p}
+        wait 0.6 seconds
+
+        openSimonGameGUI({_p}, "normal")
+        wait 0.2 seconds
+    
+    set {simon.showingSequence.%{_p}%} to false
+    send "&a&l[SIMON] &7À votre tour ! Reproduisez la séquence." to {_p}
+
+    openSimonGameGUI({_p}, "normal")
+
+
+function openSimonGameGUI(p: player, mode: text):
+
+    if {simon.playing.%{_p}%} is not true:
+        stop
+    
+    set {_guiTitle} to "&6&lSIMON - Reproduisez la séquence"
+
+    if {_mode} is "red":
+        set {_redItem} to red stained glass block
+    else:
+        set {_redItem} to red stained glass pane
+    
+    if {_mode} is "blue":
+        set {_blueItem} to blue stained glass block
+    else:
+        set {_blueItem} to blue stained glass pane
+    
+    if {_mode} is "green":
+        set {_greenItem} to lime stained glass block
+    else:
+        set {_greenItem} to lime stained glass pane
+    
+    if {_mode} is "yellow":
+        set {_yellowItem} to yellow stained glass block
+    else:
+        set {_yellowItem} to yellow stained glass pane
+
+    set {_seqSize} to size of {simon.sequence.%{_p}%::*}
+    set {_inputSize} to size of {simon.playerInput.%{_p}%::*}
+    set {_currentLevel} to {simon.level.%{_p}%}
+    set {_maxLevel} to {simon.maxLevel.%{_p}%}
+    
+    create a gui with virtual chest inventory with 3 rows named {_guiTitle}:
+
+        if {_mode} is "red":
+            make gui slot 11 with {_redItem} named "&c&l⬛ ROUGE ⬛"
+        else:
+            make gui slot 11 with {_redItem} named "&cRouge":
+                if {simon.showingSequence.%player%} is not true:
+                    simonPlayerClick(player, 1)
+
+        if {_mode} is "blue":
+            make gui slot 15 with {_blueItem} named "&9&l⬛ BLEU ⬛"
+        else:
+            make gui slot 15 with {_blueItem} named "&9Bleu":
+                if {simon.showingSequence.%player%} is not true:
+                    simonPlayerClick(player, 2)
+
+        if {_mode} is "green":
+            make gui slot 20 with {_greenItem} named "&a&l⬛ VERT ⬛"
+        else:
+            make gui slot 20 with {_greenItem} named "&aVert":
+                if {simon.showingSequence.%player%} is not true:
+                    simonPlayerClick(player, 3)
+        
+        if {_mode} is "yellow":
+            make gui slot 24 with {_yellowItem} named "&e&l⬛ JAUNE ⬛"
+        else:
+            make gui slot 24 with {_yellowItem} named "&eJaune":
+                if {simon.showingSequence.%player%} is not true:
+                    simonPlayerClick(player, 4)
+
+        make gui slot 4 with paper named "&e&lNiveau: &f%{_currentLevel}%&7/&f%{_maxLevel}%" with lore "&7Séquence: &f%{_seqSize}% cases" and "&7Progression: &f%{_inputSize}%&7/&f%{_seqSize}%"
+
+        make gui slot 26 with barrier named "&c&lAbandonner" with lore "&7Cliquez pour quitter le jeu":
+            send "&c&l[SIMON] &7Vous avez abandonné le jeu." to player
+            stopSimonGame(player, false)
+    
+    open last gui to {_p}
+
+
+function simonPlayerClick(p: player, caseNumber: number):
+    if {simon.playing.%{_p}%} is not true:
+        stop
+    
+    if {simon.showingSequence.%{_p}%} is true:
+        send "&c&l[SIMON] &7Attendez que la séquence soit terminée !" to {_p}
+        stop
+
+    add {_caseNumber} to {simon.playerInput.%{_p}%::*}
+
+    if {_caseNumber} is 1:
+        play sound "block.note_block.harp" with volume 1 and pitch 1.0 to {_p}
+        set {_colorName} to "Rouge"
+    else if {_caseNumber} is 2:
+        play sound "block.note_block.harp" with volume 1 and pitch 1.2 to {_p}
+        set {_colorName} to "Bleu"
+    else if {_caseNumber} is 3:
+        play sound "block.note_block.harp" with volume 1 and pitch 1.4 to {_p}
+        set {_colorName} to "Vert"
+    else if {_caseNumber} is 4:
+        play sound "block.note_block.harp" with volume 1 and pitch 1.6 to {_p}
+        set {_colorName} to "Jaune"
+    
+    set {_inputSize} to size of {simon.playerInput.%{_p}%::*}
+    set {_expectedCase} to {simon.sequence.%{_p}%::%{_inputSize}%}
+
+    if {_expectedCase} is not set:
+        send "&c&l[SIMON] &7Erreur interne du jeu. Abandon..." to {_p}
+        stopSimonGame({_p}, false)
+        stop
+    
+    if {_caseNumber} is not {_expectedCase}:
+        if {_expectedCase} is 1:
+            set {_expectedName} to "Rouge"
+        else if {_expectedCase} is 2:
+            set {_expectedName} to "Bleu"
+        else if {_expectedCase} is 3:
+            set {_expectedName} to "Vert"
+        else if {_expectedCase} is 4:
+            set {_expectedName} to "Jaune"
+        
+        send "&c&l[SIMON] &7Erreur ! La case était &f%{_expectedName}% &7et non &f%{_colorName}%&7." to {_p}
+        play sound "entity.villager.no" with volume 1 and pitch 0.8 to {_p}
+        wait 1 second
+        stopSimonGame({_p}, false)
+        stop
+
+    set {_seqSize} to size of {simon.sequence.%{_p}%::*}
+    
+    if {_inputSize} >= {_seqSize}:
+
+        send "&a&l[SIMON] &7✓ Séquence correcte !" to {_p}
+        play sound "entity.player.levelup" with volume 1 and pitch 1.2 to {_p}
+        close {_p}'s inventory
+
+        if {simon.level.%{_p}%} >= {simon.maxLevel.%{_p}%}:
+            send "&6&l[SIMON] &7🎉 Félicitations ! Vous avez terminé tous les niveaux !" to {_p}
+            stopSimonGame({_p}, true)
+            stop
+
+        add 1 to {simon.level.%{_p}%}
+        wait 1.5 seconds
+        simonNextLevel({_p})
+    else:
+        send "&7Case correcte ! &f%{_inputSize}%&7/&f%{_seqSize}%" to {_p}
+        openSimonGameGUI({_p}, "normal")
+
+
+function stopSimonGame(p: player, won: boolean):
+    set {simon.playing.%{_p}%} to false
+    set {simon.won.%{_p}%} to {_won}
+    set {simon.result.%{_p}%} to {_won}
+    close {_p}'s inventory
+    
+    if {_won} is true:
+        send "&a&l[SIMON] &7✓ Vous avez gagné ! Niveau atteint: &f%{simon.level.%{_p}%}%" to {_p}
+        play sound "ui.toast.challenge_complete" with volume 1 and pitch 1 to {_p}
+    else:
+        send "&c&l[SIMON] &7✗ Vous avez perdu ! Niveau atteint: &f%{simon.level.%{_p}%}%" to {_p}
+        play sound "entity.enderman.teleport" with volume 1 and pitch 0.8 to {_p}
+    
+    wait 2 seconds
+    cleanupSimonGame({_p})
+
+
+function cleanupSimonGame(p: player):
+    delete {simon.sequence.%{_p}%::*}
+    delete {simon.playerInput.%{_p}%::*}
+    delete {simon.level.%{_p}%}
+    delete {simon.showingSequence.%{_p}%}
+    delete {simon.maxLevel.%{_p}%}
+    delete {simon.won.%{_p}%}
+    delete {simon.playing.%{_p}%}
+
+
+command /simon [<text>] [<integer>]:
+    trigger:
+        if arg-1 is not set:
+            send "&e&l[SIMON] &7Commandes:"
+            send "&7/simon start &f- Démarrer le jeu (niveau max: 10)"
+            send "&7/simon start <niveau> &f- Démarrer avec un niveau max personnalisé"
+            send "&7/simon stop &f- Arrêter le jeu"
+            stop
+        
+        if arg-1 is "start":
+            if {simon.playing.%player%} is true:
+                send "&c&l[SIMON] &7Vous êtes déjà en train de jouer !"
+                stop
+
+            if arg-2 is set:
+                if arg-2 is between 1 and 50:
+                    set {_maxLevel} to arg-2
+                else:
+                    send "&c&l[SIMON] &7Le niveau maximum doit être entre 1 et 50 !"
+                    stop
+            else:
+                set {_maxLevel} to 10
+            
+            send "&e&l[SIMON] &7Démarrage du jeu..."
+
+            startSimonGame(player)
+
+            if arg-2 is set:
+                set {simon.maxLevel.%player%} to {_maxLevel}
+
+            while {simon.playing.%player%} is true:
+                wait 1 second
+
+            wait 2.5 seconds
+            set {_result} to getSimonResult(player)
+            
+            if {_result} is true:
+                send "&a&l[SIMON] &7Résultat final: &aVICTOIRE ✓"
+            else:
+                send "&c&l[SIMON] &7Résultat final: &cDÉFAITE ✗"
+            stop
+        
+        if arg-1 is "stop":
+            if {simon.playing.%player%} is not true:
+                send "&c&l[SIMON] &7Vous ne jouez pas actuellement."
+                stop
+            
+            stopSimonGame(player, false)
+            send "&e&l[SIMON] &7Jeu arrêté."
+            stop
+        
+        send "&c&l[SIMON] &7Commande inconnue. Utilisez /simon pour voir les commandes."
+
+
+on inventory close:
+    if name of player's current inventory contains "SIMON":
+        if {simon.playing.%player%} is true:
+            if {simon.showingSequence.%player%} is not true:
+                wait 2 ticks
+                if {simon.playing.%player%} is true:
+                    if player's current inventory is not set:
+                        openSimonGameGUI(player, "normal")
+
+on quit:
+    if {simon.playing.%player%} is true:
+        cleanupSimonGame(player)
+
+
+command /simonclear [<offline player>]:
+    permission: simon.admin
+    trigger:
+        if arg-1 is set:
+            cleanupSimonGame(arg-1)
+            delete {simon.result.%arg-1%}
+            send "&a&l[SIMON] &7Variables nettoyées pour %arg-1%."
+        else:
+            cleanupSimonGame(player)
+            delete {simon.result.%player%}
+            send "&a&l[SIMON] &7Vos variables ont été nettoyées."
